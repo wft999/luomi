@@ -1,0 +1,33 @@
+#!/bin/bash
+
+csudo=""
+if command -v sudo > /dev/null; then
+    csudo="sudo"
+fi
+
+function is_using_systemd() {
+    if pidof systemd &> /dev/null; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Stop the service if running
+if pidof taosd &> /dev/null; then
+    if is_using_systemd; then
+        ${csudo} systemctl stop taosd || :
+    else
+        ${csudo} service taosd stop || :
+    fi
+    echo "Stop taosd service success!"
+    sleep 1
+fi
+
+# if taos.cfg already softlink, remove it
+cfg_install_dir="/etc/taos"
+install_main_dir="/usr/local/taos"
+if [ -f ${cfg_install_dir}/taos.cfg ]; then
+    ${csudo} rm -f ${install_main_dir}/cfg/taos.cfg   || :
+fi    
+

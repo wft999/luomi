@@ -1,0 +1,16 @@
+CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
+
+PROJECT(TDengine)
+
+AUX_SOURCE_DIRECTORY(src SRC)
+INCLUDE_DIRECTORIES(${TD_ROOT_DIR}/src/inc ${TD_OS_DIR}/inc inc  ${TD_ROOT_DIR}/deps/modbus-3.1.4)
+
+IF (TD_LINUX)
+
+ELSEIF (TD_WINDOWS)
+	INCLUDE_DIRECTORIES(${TD_ROOT_DIR}/deps/pthread)  
+
+ENDIF ()
+
+ADD_LIBRARY(modbustcp ${SRC})
+TARGET_LINK_LIBRARIES(modbustcp taos_static modbus)
