@@ -15,19 +15,29 @@
 
 int main(int argc, char *argv[]) {
 	COL_TYPE colType[] = {COL_TYPE_INT,COL_TYPE_INT};
-	int ret = create_db("/root/temp","db01",2,colType,100,STORE_BY_COL,COMPRESS_NONE,1);
+	int ret = create_db("/root/temp","compressNone",2,colType,1200,STORE_BY_COL,COMPRESS_NONE,1);
 	if(ret < 0){
-		printf("====create_db fail====%d\n\n",ret);
-		//goto error;
+		printf("====create_db:compressNone fail====%d\n\n",ret);
 	}
 
-	void* pDb = open_db("/root/temp/db01");
-	if(pDb == NULL){
-		printf("====open_db fail====\n\n");
+	ret = create_db("/root/temp","compressTaos1",2,colType,1200,STORE_BY_COL,COMPRESS_TAOS_ONE_STEP,1);
+	if(ret < 0){
+		printf("====create_db:compressTaos1 fail====%d\n\n",ret);
+	}
+
+	void* pDbNone = open_db("/root/temp/compressNone");
+	if(pDbNone == NULL){
+		printf("====open_db:compressNone fail====\n\n");
 		goto error;
 	}
 
-	int count = 120;
+	void* pDbTaos1 = open_db("/root/temp/compressTaos1");
+	if(pDbTaos1 == NULL){
+		printf("====open_db:compressTaos1 fail====\n\n");
+		goto error;
+	}
+
+	int count = 1000000;
 	struct _dt{
 		int e1;
 		int e2;
@@ -38,7 +48,12 @@ int main(int argc, char *argv[]) {
 	d.e2 = 10000;
 
 	while(count--){
-		ret = put_db(pDb,(char*)&d);
+		ret = put_db(pDbNone,(char*)&d);
+		if(ret <0){
+			printf("====put_db fail====%d\n\n",ret);
+			goto error;
+		}
+		ret = put_db(pDbTaos1,(char*)&d);
 		if(ret <0){
 			printf("====put_db fail====%d\n\n",ret);
 			goto error;
@@ -49,15 +64,16 @@ int main(int argc, char *argv[]) {
 		printf("====put_db count====%d\n\n",count);
 	}
 
+/*
 	int64_t fileIndex;
 	printf("====input fileIndex=====\n");
-	while(scanf("%ld",&fileIndex) > 0)
-		query_db(pDb,fileIndex);
-
-	close_db(pDb);
-
+	while(scanf("%lld",&fileIndex) > 0)
+		readFromFile(pDb,fileIndex);
+*/
 
 error:
+	close_db(pDbNone);
+	close_db(pDbTaos1);
 	printf("====demo end====\n\n");
 	return getchar();
 }

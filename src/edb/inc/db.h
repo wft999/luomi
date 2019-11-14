@@ -37,6 +37,23 @@ typedef enum {
 	COMPRESS_TAOS_TWO_STEP,
 }COMPRESS_TYPE;
 
+typedef enum {
+	BLOCK_NONE,
+	BLOCK_LEFT,
+	BLOCK_RIGHT,
+	BLOCK_EQUAL,
+	BLOCK_LEFT_CROSS,
+	BLOCK_CONTAINED,
+	BLOCK_CONTAINING,
+	BLOCK_RIGHT_CROSS
+
+}BLOCK_TYPE;
+
+typedef enum {
+	ORDER_ASC = 1,
+	ORDER_DESC = -1
+}ORDER_TYPE;
+
 #define DB_NAME_LEN 				128
 #define MAX_LOGLINE_SIZE           1000
 #define MAX_COL_COUNT 				32
@@ -52,8 +69,8 @@ typedef struct _LOG_HEAD{
 	unsigned short rowSize;
 	unsigned short dataPos;
 
-	int64_t timestampStart;
-	int64_t timestampEnd;
+	int64_t startTimestamp;
+	int64_t endTimestamp;
 
 	unsigned char colCount;
 	char reserved[32];
@@ -79,11 +96,11 @@ typedef struct _DB{
 }DB,*PDB;
 
 typedef struct _INDEX{
-	int count;
-	int64_t start;
-	int64_t end;
-	int pos;
-	int len;
+	int rowCount;
+	int64_t startTimestamp;
+	int64_t endTimestamp;
+	int dataOffset;
+	int dataLength;
 
 	char reserved[8];
 	int colLens[0];
@@ -91,6 +108,34 @@ typedef struct _INDEX{
 
 typedef struct _QUERY{
 	void* signature;
+	DB* pDb;
+	int64_t startTimestamp;
+	int64_t endTimestamp;
+	ORDER_TYPE order;
+	int64_t	colBitmap;
+
+	int		logChecked;
+
+	int64_t startFileIndex;
+	int64_t endFileIndex;
+	int64_t curFileIndex;
+
+	BLOCK_TYPE		blockType;
+	int		startBlockIndex;
+	int		endBlockIndex;
+	int		curBlockIndex;
+
+	int		rowCount;
+	int		startDataIndex;
+	int		endDataIndex;
+	int		curDataIndex;
+
+	int 	recordFd;
+	int 	indexFd;
+	INDEX	indexRecord;
+
+	char 	reserved[16];
+	char 	buf[0];
 }QUERY;
 
 
@@ -98,14 +143,17 @@ int create_db(char* root,char* name,unsigned char colCount,COL_TYPE colType[],un
 void* open_db(char* name);
 void close_db(void* db);
 int put_db(void* db,char* pData);
-QUERY* open_query(char* dbName,char* startTime, char* endTime);
-void close_query(QUERY* pQuery);
+QUERY* open_query(const void* handle,char* strStartTime, char* strEndTime,ORDER_TYPE order);
+int move_next(void* handle);
+void* fetch_col(void* handle,int colIndex);
+void close_query(void* handle);
 
 int db_errcode();
 void logError(const char *const flags, const char *const format, ...);
 
 
 extern int gErrorCode;
+extern int gColTypeSize[];
 
 
 #ifdef __cplusplus

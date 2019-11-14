@@ -4,7 +4,8 @@ PROJECT(TDengine)
 
 AUX_SOURCE_DIRECTORY(. SRC)
 INCLUDE_DIRECTORIES(${TD_ROOT_DIR}/src/inc ${TD_ROOT_DIR}/src/edb/inc)
-ADD_EXECUTABLE(edbdemo ${SRC})
+ADD_EXECUTABLE(edbdemo demo.c)
+ADD_EXECUTABLE(edbquery query.c)
 
 TARGET_LINK_LIBRARIES(edbdemo tutil edb)   
-
+TARGET_LINK_LIBRARIES(edbquery tutil edb) 

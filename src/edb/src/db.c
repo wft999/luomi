@@ -19,17 +19,17 @@
 #include <os.h>
 #include <tchecksum.h>
 
-int saveToFile(const void* db);
-int readFromFile(const void* db,int64_t fileIndex);
-int compressNone(const void* db,INDEX* const pIndex);
-int compressTaosOneStep(const void* db,INDEX* const pIndex);
-int compressTaosTwoStep(const void* db,INDEX* const pIndex);
-int compressZlib(const void* db,INDEX* const pIndex);
+int saveToFile(const void* handle);
+int readFromFile(const void* handle,int64_t fileIndex);
+int compressNone(const void* handle,INDEX* const pIndex);
+int compressTaosOneStep(const void* handle,INDEX* const pIndex);
+int compressTaosTwoStep(const void* handle,INDEX* const pIndex);
+int compressZlib(const void* handle,INDEX* const pIndex);
 
-int decompressTaosOneStep(const void* db,const char* const pInput,const INDEX* const pIndex,int col);
-int decompressNone(const void* db,const char* const pInput,const INDEX* const pIndex,int col);
-int decompressZlib(const void* db,const char* const pInput,const INDEX* const pIndex,int col);
-int decompressTaosTwoStep(const void* db,const char* const pInput,const INDEX* const pIndex,int col);
+int decompressTaosOneStep(const void* handle,const char* const pInput,const INDEX* const pIndex,int col,char* pOutput, int outSize);
+int decompressNone(const void* handle,const char* const pInput,const INDEX* const pIndex,int col,char* pOutput, int outSize);
+int decompressZlib(const void* handle,const char* const pInput,const INDEX* const pIndex,int col,char* pOutput, int outSize);
+int decompressTaosTwoStep(const void* handle,const char* const pInput,const INDEX* const pIndex,int col,char* pOutput, int outSize);
 
 int64_t gMillisecondOfHour = 60 * 60 * 1000;
 int gErrorCode = 0;
@@ -42,9 +42,9 @@ char *gStrError[] = {"success",
 };
 
 int gColTypeSize[] = {sizeof(char),sizeof(char),sizeof(short),sizeof(int),sizeof(int64_t),sizeof(float),sizeof(double),32,sizeof(int64_t),0};
-char* gColTypeFormat[] = {"d","%d","%d","%d","%ld","%f","%f","%s","%ld",""};
-int (*gCompress[])(const void* db,INDEX* const pIndex) = {compressNone, compressZlib, compressTaosOneStep,compressTaosTwoStep};
-int (*gDecompress[])(const void* db,const char* const pInput,const INDEX* const pIndex,int col) = {decompressNone, decompressZlib, decompressTaosOneStep,decompressTaosTwoStep};
+char* gColTypeFormat[] = {"d","%d","%d","%d","%lld","%f","%f","%s","%lld",""};
+int (*gCompress[])(const void* handle,INDEX* const pIndex) = {compressNone, compressZlib, compressTaosOneStep,compressTaosTwoStep};
+int (*gDecompress[])(const void* handle,const char* const pInput,const INDEX* const pIndex,int col,char* pOutput, int outSize) = {decompressNone, decompressZlib, decompressTaosOneStep,decompressTaosTwoStep};
 
 int create_db(char* root,char* name,unsigned char colCount,COL_TYPE colType[],unsigned short cacheSize,STORE_TYPE storeType,COMPRESS_TYPE compressType,unsigned char hoursPerFile){
 	gErrorCode = 0;
@@ -183,11 +183,11 @@ void* open_db(char* name){
 	return pDb;
 }
 
-void close_db(void* db){
+void close_db(void* handle){
 	gErrorCode = 0;
-	DB* pDb = (DB*)db;
+	DB* pDb = (DB*)handle;
 
-	if(pDb && pDb->signature == db){
+	if(pDb && pDb->signature == handle){
 		int mappingSize = sizeof(LOG_HEAD) + pDb->pLogHead->rowSize * pDb->pLogHead->cacheSize;
 
 #ifndef LINUX
@@ -212,10 +212,10 @@ int64_t getTimestamp() {
   return (int64_t)systemTime.tv_sec * 1000L + (uint64_t)systemTime.tv_usec / 1000;
 }
 
-int put_db(void* db,char* pData){
+int put_db(void* handle,char* pData){
 	gErrorCode = 0;
-	DB* pDb = (DB*)db;
-	if(pDb == NULL || pDb->signature != db){
+	DB* pDb = (DB*)handle;
+	if(pDb == NULL || pDb->signature != handle){
 		logError("put_db","signature  invalidate");
 		gErrorCode = 3;
 		return -1;
@@ -227,12 +227,12 @@ int put_db(void* db,char* pData){
 
 	if(pDb->pLogHead->curRowCount > 0 ){
 		if(pDb->pLogHead->curRowCount >= pDb->pLogHead->cacheSize){
-			saveToFile(db);
+			saveToFile(handle);
 		}else{
 			int64_t expectFileIindex = st / (pDb->pLogHead->hoursPerFile * gMillisecondOfHour);
-			int64_t curFileIndex = pDb->pLogHead->timestampStart / (pDb->pLogHead->hoursPerFile * gMillisecondOfHour);
+			int64_t curFileIndex = pDb->pLogHead->startTimestamp / (pDb->pLogHead->hoursPerFile * gMillisecondOfHour);
 			if(curFileIndex != expectFileIindex){
-				saveToFile(db);
+				saveToFile(handle);
 			}
 		}
 	}
@@ -253,43 +253,17 @@ int put_db(void* db,char* pData){
 			pData += size;
 		}
 	}
-	if(pDb->pLogHead->curRowCount == 0) pDb->pLogHead->timestampStart = st;
-	pDb->pLogHead->timestampEnd = st;
+	if(pDb->pLogHead->curRowCount == 0) pDb->pLogHead->startTimestamp = st;
+	pDb->pLogHead->endTimestamp = st;
 	pDb->pLogHead->curRowCount++;
 
 	if(pDb->pLogHead->curRowCount >= pDb->pLogHead->cacheSize){
-		saveToFile(db);
+		saveToFile(handle);
 	}
 
 	pthread_mutex_unlock(&pDb->dmutex);
 
 	return 0;
-}
-
-QUERY* open_query(char* dbName,char* strStartTime, char* strEndTime){//2018-06-01 08:00:00.000
-	int64_t startTime, endTime;
-
-	if (taosParseTime(strStartTime, &startTime, strlen(strStartTime), TSDB_TIME_PRECISION_MILLI) != 0) {
-		return NULL;
-	}
-
-	if(strcmp(strEndTime,"NOW") == 0 || strcmp(strEndTime,"now") == 0){
-		endTime = getTimestamp();
-	}else{
-		if (taosParseTime(strEndTime, &endTime, strlen(strEndTime), TSDB_TIME_PRECISION_MILLI) != 0) {
-		    return NULL;
-		}
-	}
-
-	return 0;
-}
-
-void close_query(QUERY* pQuery){
-	if(pQuery == NULL || pQuery->signature != pQuery){
-		return;
-	}
-
-	free(pQuery);
 }
 
 int db_errcode(){
@@ -301,20 +275,17 @@ char *db_errstr(){
 	return NULL;
 }
 
-int readFromFile(const void* db,int64_t fileIndex){
+int readFromFile(const void* handle,int64_t fileIndex){
 	gErrorCode = 0;
-	DB* pDb = (DB*)db;
-	if(pDb == NULL || pDb->signature != db){
+	DB* pDb = (DB*)handle;
+	if(pDb == NULL || pDb->signature != handle){
 		logError("readFromFile","signature  invalidate");
 		gErrorCode = 3;
 		return -1;
 	}
 
-	//int64_t st = getTimestamp();
-	//int64_t curFileIndex = st / (pDb->pLogHead->hoursPerFile * gMillisecondOfHour);
-
 	char path[256];
-	sprintf(path,"%s/index%ld.data",pDb->name,fileIndex);
+	sprintf(path,"%s/index%lld.data",pDb->name,fileIndex);
 	int indexFd = open(path, O_RDWR, S_IRWXU | S_IRWXG | S_IRWXO);
 	if(indexFd < 3){
 		logError("readFromFile","indexFd < 3");
@@ -322,7 +293,7 @@ int readFromFile(const void* db,int64_t fileIndex){
 		return -1;
 	}
 
-	sprintf(path,"%s/record%ld.data",pDb->name,fileIndex);
+	sprintf(path,"%s/record%lld.data",pDb->name,fileIndex);
 	int recordFd = open(path, O_RDWR, S_IRWXU | S_IRWXG | S_IRWXO);
 	if(recordFd < 3){
 		logError("readFromFile","recordFd < 3");
@@ -339,7 +310,7 @@ int readFromFile(const void* db,int64_t fileIndex){
 	while(read(indexFd,pIndex,indexSize) == indexSize){
 		TSCKSUM chksum = 0;
 
-		lseek(recordFd, 0, pIndex->pos);
+		lseek(recordFd, 0, pIndex->dataOffset);
 		for(int i = 0; i < pDb->pLogHead->colCount; i++){
 			if(len < pIndex->colLens[i]){
 				len = pIndex->colLens[i];
@@ -357,7 +328,7 @@ int readFromFile(const void* db,int64_t fileIndex){
 				return -3;
 			}
 
-			gDecompress[pDb->pLogHead->compressType](db,pBuf,pIndex,i);
+			//gDecompress[pDb->pLogHead->compressType](handle,pBuf,pIndex,i);
 		}
 	}
 
@@ -367,10 +338,10 @@ int readFromFile(const void* db,int64_t fileIndex){
 	return 0;
 }
 
-int saveToFile(const void* db){
+int saveToFile(const void* handle){
 	gErrorCode = 0;
-	DB* pDb = (DB*)db;
-	if(pDb == NULL || pDb->signature != db){
+	DB* pDb = (DB*)handle;
+	if(pDb == NULL || pDb->signature != handle){
 		logError("saveToFile","signature  invalidate");
 		gErrorCode = 3;
 		return -1;
@@ -382,30 +353,30 @@ int saveToFile(const void* db){
 		if(pDb->recordFd) close(pDb->recordFd);
 		pDb->curFileIndex = curFileIndex;
 		char path[256];
-		sprintf(path,"%s/index%ld.data",pDb->name,curFileIndex);
+		sprintf(path,"%s/index%lld.data",pDb->name,curFileIndex);
 		pDb->indexFd = open(path, O_RDWR | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
 
-		sprintf(path,"%s/record%ld.data",pDb->name,curFileIndex);
+		sprintf(path,"%s/record%lld.data",pDb->name,curFileIndex);
 		pDb->recordFd = open(path, O_RDWR | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
 	}
 
 	int indexSize = sizeof(INDEX) + sizeof(int)*pDb->pLogHead->colCount;
 	INDEX* pIndex = calloc(indexSize,1);
-	pIndex->pos = lseek(pDb->recordFd, 0, SEEK_END);
+	pIndex->dataOffset = lseek(pDb->recordFd, 0, SEEK_END);
 
-	int len = gCompress[pDb->pLogHead->compressType](db,pIndex);
+	int len = gCompress[pDb->pLogHead->compressType](handle,pIndex);
 	if(len > 0){
-		pIndex->count = pDb->pLogHead->curRowCount;
-		pIndex->len = len;
-		pIndex->start = pDb->pLogHead->timestampStart;
-		pIndex->end = pDb->pLogHead->timestampEnd;
+		pIndex->rowCount = pDb->pLogHead->curRowCount;
+		pIndex->dataLength = len;
+		pIndex->startTimestamp = pDb->pLogHead->startTimestamp;
+		pIndex->endTimestamp = pDb->pLogHead->endTimestamp;
 
 		lseek(pDb->indexFd, 0, SEEK_END);
 		write(pDb->indexFd, pIndex, indexSize);
 
 		//memset(pDb->pLogData,0,pDb->pLogHead->rowSize * pDb->pLogHead->cacheSize);
-		pDb->pLogHead->timestampEnd = 0;
-		pDb->pLogHead->timestampStart = 0;
+		pDb->pLogHead->endTimestamp = 0;
+		pDb->pLogHead->startTimestamp = 0;
 		pDb->pLogHead->curRowCount = 0;
 	}
 	free(pIndex);

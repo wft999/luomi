@@ -34,15 +34,15 @@ int (*gTaosDecompFunc[])(const char *const input, int compressedSize, const int 
                                                             tsDecompressTimestamp,
                                                             tsDecompressString};
 
-int compressNone(const void* db,INDEX* const pIndex){
-	DB* pDb = (DB*)db;
-	if(pDb == NULL || pDb->signature != db){
+int compressNone(const void* handle,INDEX* const pIndex){
+	DB* pDb = (DB*)handle;
+	if(pDb == NULL || pDb->signature != handle){
 		gErrorCode = 3;
 		return -1;
 	}
 
 	int inputCount =  pDb->pLogHead->curRowCount;
-	int outSize = pDb->pLogHead->maxColSize * inputCount;
+	int outSize = pDb->pLogHead->maxColSize * inputCount + sizeof(TSCKSUM);
 	char* pOutput = malloc(outSize);
 	if(pOutput == NULL){
 		logError("compressNone","pOutput == NULL");
@@ -71,46 +71,29 @@ int compressNone(const void* db,INDEX* const pIndex){
 	return totalSize;
 }
 
-int decompressNone(const void* db,const char* const pInput,const INDEX* const pIndex,int col){
-	DB* pDb = (DB*)db;
-	if(pDb == NULL || pDb->signature != db){
+int decompressNone(const void* handle,const char* const pInput,const INDEX* const pIndex,int col,char* pOutput, int outSize){
+	DB* pDb = (DB*)handle;
+	if(pDb == NULL || pDb->signature != handle){
 		return -1;
 	}
 
 	COL_TYPE type = pDb->pLogHead->colType[col];
 	int colSize = gColTypeSize[type];
 
-	printf("Col%d\n",col);
-	if(type == COL_TYPE_TIMESTAMP){
-		int64_t* p = (int64_t*)pInput;
-		for(int i =0; i< pIndex->count; i++){
-			char ts[30] = {0};
-			struct tm* ptm;
-			time_t     tt = p[i] / 1000;
-			ptm = localtime(&tt);
-			strftime(ts, 30, "%Y-%m-%d %H:%M:%S", ptm);
-			printf("%s\n",ts);
-		}
-	}else if(type == COL_TYPE_INT){
-		int* p = (int*)pInput;
-		for(int i =0; i< pIndex->count; i++){
-			printf("%d\n",p[i]);
-		}
-	}
-	printf("\n");
+	memcpy(pOutput,pInput,colSize * pIndex->rowCount);
 
 	return 0;
 }
 
 
-int compressTaosOneStep(const void* db,INDEX* const pIndex){
-	DB* pDb = (DB*)db;
-	if(pDb == NULL || pDb->signature != db){
+int compressTaosOneStep(const void* handle,INDEX* const pIndex){
+	DB* pDb = (DB*)handle;
+	if(pDb == NULL || pDb->signature != handle){
 		return -1;
 	}
 
 	int inputCount =  pDb->pLogHead->curRowCount;
-	int outSize = pDb->pLogHead->maxColSize * inputCount;
+	int outSize = pDb->pLogHead->maxColSize * inputCount  + sizeof(TSCKSUM);
 	char* pOutput = malloc(outSize);
 	if(pOutput == NULL){
 		logError("compressTaosOneStep","pOutput == NULL");
@@ -136,55 +119,27 @@ int compressTaosOneStep(const void* db,INDEX* const pIndex){
 	return totalSize;
 }
 
-int decompressTaosOneStep(const void* db,const char* const pInput,const INDEX* const pIndex,int col){
-	DB* pDb = (DB*)db;
-	if(pDb == NULL || pDb->signature != db){
+int decompressTaosOneStep(const void* handle,const char* const pInput,const INDEX* const pIndex,int col,char* pOutput, int outSize){
+	DB* pDb = (DB*)handle;
+	if(pDb == NULL || pDb->signature != handle){
 		return -1;
 	}
 
 	COL_TYPE type = pDb->pLogHead->colType[col];
 	int colSize = gColTypeSize[type];
 
-	int outSize = pDb->pLogHead->maxColSize * pIndex->count;
-	char* pOutput = malloc(outSize);
-	if(pOutput == NULL){
-		logError("compressTaosOneStep","pOutput == NULL");
-		return -2;
-	}
-
-	int size = gTaosDecompFunc[type](pInput,pIndex->colLens[col] - sizeof(TSCKSUM),pIndex->count,pOutput,outSize, ONE_STAGE_COMP,NULL, 0);
-	if(size != colSize * pIndex->count){
-		free(pOutput);
+	int size = gTaosDecompFunc[type](pInput,pIndex->colLens[col] - sizeof(TSCKSUM),pIndex->rowCount,pOutput,outSize, ONE_STAGE_COMP,NULL, 0);
+	if(size != colSize * pIndex->rowCount){
 		logError("compressTaosOneStep","size != colSize * pIndex->count");
 		return -3;
 	}
 
-	printf("Col%d\n",col);
-	if(type == COL_TYPE_TIMESTAMP){
-		int64_t* p = (int64_t*)pOutput;
-		for(int i =0; i< pIndex->count; i++){
-			char ts[30] = {0};
-			struct tm* ptm;
-			time_t     tt = p[i] / 1000;
-			ptm = localtime(&tt);
-			strftime(ts, 30, "%Y-%m-%d %H:%M:%S", ptm);
-			printf("%s\n",ts);
-		}
-	}else if(type == COL_TYPE_INT){
-		int* p = (int*)pOutput;
-		for(int i =0; i< pIndex->count; i++){
-			printf("%d\n",p[i]);
-		}
-	}
-	printf("\n");
-	free(pOutput);
-
 	return 0;
 }
 
-int compressTaosTwoStep(const void* db,INDEX* const pIndex){
-	DB* pDb = (DB*)db;
-	if(pDb == NULL || pDb->signature != db){
+int compressTaosTwoStep(const void* handle,INDEX* const pIndex){
+	DB* pDb = (DB*)handle;
+	if(pDb == NULL || pDb->signature != handle){
 		gErrorCode = 3;
 		return -1;
 	}
@@ -192,18 +147,18 @@ int compressTaosTwoStep(const void* db,INDEX* const pIndex){
 	return 0;
 }
 
-int decompressTaosTwoStep(const void* db,const char* const pInput,const INDEX* const pIndex,int col){
+int decompressTaosTwoStep(const void* handle,const char* const pInput,const INDEX* const pIndex,int col,char* pOutput, int outSize){
 	return 0;
 }
 
-int decompressZlib(const void* db,const char* const pInput,const INDEX* const pIndex,int col){
+int decompressZlib(const void* handle,const char* const pInput,const INDEX* const pIndex,int col,char* pOutput, int outSize){
 	return 0;
 }
 
 
-int compressZlib(const void* db,INDEX* const pIndex){
-	DB* pDb = (DB*)db;
-	if(pDb == NULL || pDb->signature != db){
+int compressZlib(const void* handle,INDEX* const pIndex){
+	DB* pDb = (DB*)handle;
+	if(pDb == NULL || pDb->signature != handle){
 		gErrorCode = 3;
 		return -1;
 	}
