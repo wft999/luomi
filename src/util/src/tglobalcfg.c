@@ -433,10 +433,10 @@ void tsInitGlobalConfig() {
   // time
   tsInitConfigOption(cfg++, "monitorInterval", &tsMonitorInterval, TSDB_CFG_VTYPE_INT, TSDB_CFG_CTYPE_B_CONFIG, 1, 600,
                      0, TSDB_CFG_UTYPE_SECOND);
-  tsInitConfigOption(cfg++, "rpcTimer", &tsRpcTimer, TSDB_CFG_VTYPE_INT,
+/*  tsInitConfigOption(cfg++, "rpcTimer", &tsRpcTimer, TSDB_CFG_VTYPE_INT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT, 100, 3000, 0, TSDB_CFG_UTYPE_MS);
   tsInitConfigOption(cfg++, "rpcMaxTime", &tsRpcMaxTime, TSDB_CFG_VTYPE_INT,
-                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT, 100, 7200, 0, TSDB_CFG_UTYPE_SECOND);
+                     TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT, 100, 7200, 0, TSDB_CFG_UTYPE_SECOND);*/
   tsInitConfigOption(cfg++, "ctime", &tsCommitTime, TSDB_CFG_VTYPE_INT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW, 30, 40960, 0, TSDB_CFG_UTYPE_SECOND);
   tsInitConfigOption(cfg++, "statusInterval", &tsStatusInterval, TSDB_CFG_VTYPE_INT,
@@ -539,9 +539,9 @@ void tsInitGlobalConfig() {
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG, 0, 255, 0, TSDB_CFG_UTYPE_NONE);
   tsInitConfigOption(cfg++, "sdbDebugFlag", &sdbDebugFlag, TSDB_CFG_VTYPE_INT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG, 0, 255, 0, TSDB_CFG_UTYPE_NONE);
-  tsInitConfigOption(cfg++, "taosDebugFlag", &taosDebugFlag, TSDB_CFG_VTYPE_INT,
+/*  tsInitConfigOption(cfg++, "taosDebugFlag", &taosDebugFlag, TSDB_CFG_VTYPE_INT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT, 0, 255, 0,
-                     TSDB_CFG_UTYPE_NONE);
+                     TSDB_CFG_UTYPE_NONE);*/
   tsInitConfigOption(cfg++, "tmrDebugFlag", &tmrDebugFlag, TSDB_CFG_VTYPE_INT,
                      TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT, 0, 255, 0,
                      TSDB_CFG_UTYPE_NONE);
@@ -805,7 +805,7 @@ void tsSetAllDebugFlag() {
   if (mdebugFlag != debugFlag) mdebugFlag = debugFlag;
   if (ddebugFlag != debugFlag) ddebugFlag = debugFlag;
   if (sdbDebugFlag != debugFlag) sdbDebugFlag = debugFlag;
-  if (taosDebugFlag != debugFlag) taosDebugFlag = debugFlag;
+/*  if (taosDebugFlag != debugFlag) taosDebugFlag = debugFlag;*/
   if (cdebugFlag != debugFlag) cdebugFlag = debugFlag;
   if (jnidebugFlag != debugFlag) jnidebugFlag = debugFlag;
   if (uDebugFlag != debugFlag) uDebugFlag = debugFlag;

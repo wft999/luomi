@@ -25,11 +25,13 @@ int compressNone(const void* handle,INDEX* const pIndex);
 int compressTaosOneStep(const void* handle,INDEX* const pIndex);
 int compressTaosTwoStep(const void* handle,INDEX* const pIndex);
 int compressZlib(const void* handle,INDEX* const pIndex);
+int compressZstd(const void* handle,INDEX* const pIndex);
 
 int decompressTaosOneStep(const void* handle,const char* const pInput,const INDEX* const pIndex,int col,char* pOutput, int outSize);
 int decompressNone(const void* handle,const char* const pInput,const INDEX* const pIndex,int col,char* pOutput, int outSize);
 int decompressZlib(const void* handle,const char* const pInput,const INDEX* const pIndex,int col,char* pOutput, int outSize);
 int decompressTaosTwoStep(const void* handle,const char* const pInput,const INDEX* const pIndex,int col,char* pOutput, int outSize);
+int decompressZstd(const void* handle,const char* const pInput,const INDEX* const pIndex,int col,char* pOutput, int outSize);
 
 int64_t gMillisecondOfHour = 60 * 60 * 1000;
 int gErrorCode = 0;
@@ -43,10 +45,11 @@ char *gStrError[] = {"success",
 
 int gColTypeSize[] = {sizeof(char),sizeof(char),sizeof(short),sizeof(int),sizeof(int64_t),sizeof(float),sizeof(double),32,sizeof(int64_t),0};
 char* gColTypeFormat[] = {"d","%d","%d","%d","%lld","%f","%f","%s","%lld",""};
-int (*gCompress[])(const void* handle,INDEX* const pIndex) = {compressNone, compressZlib, compressTaosOneStep,compressTaosTwoStep};
-int (*gDecompress[])(const void* handle,const char* const pInput,const INDEX* const pIndex,int col,char* pOutput, int outSize) = {decompressNone, decompressZlib, decompressTaosOneStep,decompressTaosTwoStep};
+int (*gCompress[])(const void* handle,INDEX* const pIndex) = {compressNone, compressZlib, compressTaosOneStep,compressTaosTwoStep, compressZstd};
+int (*gDecompress[])(const void* handle,const char* const pInput,const INDEX* const pIndex,int col,char* pOutput, int outSize) = {decompressNone, decompressZlib, decompressTaosOneStep,decompressTaosTwoStep, decompressZstd};
 
 int create_db(char* root,char* name,unsigned char colCount,COL_TYPE colType[],unsigned short cacheSize,STORE_TYPE storeType,COMPRESS_TYPE compressType,unsigned char hoursPerFile){
+
 	gErrorCode = 0;
 
 	if((strlen(root) + strlen(name)) > 100){

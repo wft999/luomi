@@ -53,8 +53,32 @@ BLOCK_TYPE get_block_type(int64_t dataStart, int64_t dataEnd, int64_t targetStar
 
 }
 
+void test(){
+	int fd = open("/root/temp/compressNone/test.data", O_RDWR | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
+	int64_t t = getTimestamp();
+	int64_t data[1024] = {t};
+	//int64_t data2[1024] = {0};
+/*	for(int i=0;i<1000;i++){
+		data[i] = t;
+		t += 1000;
+	}*/
+	int size = 1000*sizeof(int64_t);
+	size += sizeof(TSCKSUM);
+	taosCalcChecksumAppend(0, (uint8_t*)data, size);
+	write(fd, data, size);
+	close(fd);
+
+	fd = open("/root/temp/compressNone/test.data", O_RDWR | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
+	read(fd, data, size);
+	close(fd);
+	TSCKSUM chksum = 0;
+	memcpy(&chksum,((uint8_t *)data) + size - sizeof(TSCKSUM),sizeof(TSCKSUM));
+	TSCKSUM chksum2 = taosCalcChecksum(0, (uint8_t *)data, size - sizeof(TSCKSUM));
+}
+
 QUERY* open_query(const void* handle,char* strStartTime, char* strEndTime,ORDER_TYPE order){//2018-06-01 08:00:00.000
 	int64_t startTime, endTime;
+
 
 	DB* pDb = (DB*)handle;
 	if(pDb == NULL || pDb->signature != handle){
@@ -173,7 +197,7 @@ int set_data_index(void* handle,BLOCK_TYPE type){
 
 int check_block(void* handle){
 	QUERY* pQuery = (QUERY*)handle;
-	if(pQuery == NULL || pQuery->signature != pQuery){
+	if(pQuery == NULL || pQuery->signature != pQuery || pQuery->indexFd < 3 || pQuery->recordFd < 3){
 		return -1;
 	}
 
@@ -199,7 +223,7 @@ int check_block(void* handle){
 	for(int i = 0; i < pDb->pLogHead->colCount; i++){
 		if(len < pIndex->colLens[i]){
 			len = pIndex->colLens[i];
-			pInput = realloc(pInput,len);
+			pInput = realloc(pInput,len+100);
 		}
 
 		COL_TYPE type = pDb->pLogHead->colType[i];
@@ -212,8 +236,11 @@ int check_block(void* handle){
 				return -2;
 			}
 
-			memcpy(&chksum,pInput + pIndex->colLens[i] - sizeof(TSCKSUM),sizeof(TSCKSUM));
-			if (chksum != taosCalcChecksum(0, (uint8_t *)pInput, pIndex->colLens[i] - sizeof(TSCKSUM))) {
+/*			memcpy(&chksum,pInput + pIndex->colLens[i] - sizeof(TSCKSUM),sizeof(TSCKSUM));
+			TSCKSUM chksum2 = taosCalcChecksum(0, (uint8_t *)pInput, pIndex->colLens[i] - sizeof(TSCKSUM));
+			if(chksum != chksum2)*/
+			if(taosCheckChecksumWhole(pInput,pIndex->colLens[i]) == 0)
+			{
 				logError("check_block","data column checksum error, col: %d", i);
 				return -3;
 			}
@@ -262,6 +289,7 @@ int searchBlockIndex(void* handle){
 	}
 
 	DB* pDb = pQuery->pDb;
+
 	while(1){
 		if(pQuery->order == ORDER_ASC){
 			if(pQuery->curBlockIndex > pQuery->endBlockIndex)
@@ -270,6 +298,7 @@ int searchBlockIndex(void* handle){
 			if(pQuery->curBlockIndex < pQuery->endBlockIndex)
 				break;
 		}
+
 		if(check_block(handle) == 0)
 			return 0;
 
@@ -314,11 +343,18 @@ int checkFile(void* handle){
 		pQuery->curBlockIndex = pQuery->startBlockIndex;
 
 		if(pQuery->indexFd) close(pQuery->indexFd);
-		pQuery->indexFd = open(path, O_RDONLY,0);
+		int fd = open(path, O_RDONLY,0);
+		if(fd < 0) return -1;
+		pQuery->indexFd = fd;
 
 		sprintf(path,"%s/record%lld.data",pDb->name,pQuery->curFileIndex);
 		if(pQuery->recordFd) close(pQuery->recordFd);
-		pQuery->recordFd = open(path, O_RDONLY,0);
+		fd = open(path, O_RDONLY,0);
+		if(fd < 0){
+			close(pQuery->indexFd);
+			return -1;
+		}
+		pQuery->recordFd = fd;
 	}
 
 	if(searchBlockIndex(handle) == 0)
@@ -390,14 +426,14 @@ int move_next(void* handle){
 		}
 	}
 
-	if(pQuery->order == ORDER_ASC && pQuery->logChecked == 0){
-		if(check_log(handle) == 0)
-			return 0;
-	}
-
 	if(pQuery->curDataIndex != -1){
 		pQuery->curDataIndex += pQuery->order;
 		return 0;
+	}
+
+	if(pQuery->order == ORDER_ASC && pQuery->logChecked == 0){
+		if(check_log(handle) == 0)
+			return 0;
 	}
 
 	return -1;

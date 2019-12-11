@@ -355,20 +355,22 @@ int tsCompressINTImp(const char *const input, const int nelements, char *const o
           break;
       }
       // Get difference.
-      if (!safeInt64Add(curr_value, -prev_value)) goto _copy_and_exit;
+      if (!safeInt64Add(curr_value, -prev_value))
+    	  goto _copy_and_exit;
 
       int64_t diff = curr_value - prev_value_tmp;
       // Zigzag encode the value.
       uint64_t zigzag_value = (diff >> (LONG_BYTES * BITS_PER_BYTE - 1)) ^ (diff << 1);
 
-      if (zigzag_value >= SIMPLE8B_MAX_INT64) goto _copy_and_exit;
+      if (zigzag_value >= SIMPLE8B_MAX_INT64)
+    	  goto _copy_and_exit;
 
       char tmp_bit;
       if (zigzag_value == 0) {
         // Take care here, __builtin_clzl give wrong anser for value 0;
         tmp_bit = 0;
       } else {
-        tmp_bit = (LONG_BYTES * BITS_PER_BYTE) - __builtin_clzl(zigzag_value);
+        tmp_bit = (LONG_BYTES * BITS_PER_BYTE) - __builtin_clzll(zigzag_value);
       }
 
       if (elems + 1 <= selector_to_elems[selector] && elems + 1 <= selector_to_elems[bit_to_selector[tmp_bit]]) {
@@ -695,14 +697,14 @@ int tsCompressTimestampImp(const char *const input, const int nelements, char *c
       if (dd1 == 0) {
         flag1 = 0;
       } else {
-        flag1 = LONG_BYTES - __builtin_clzl(dd1) / BITS_PER_BYTE;
+        flag1 = LONG_BYTES - __builtin_clzll(dd1) / BITS_PER_BYTE;
       }
     } else {
       dd2 = zigzag_value;
       if (dd2 == 0) {
         flag2 = 0;
       } else {
-        flag2 = LONG_BYTES - __builtin_clzl(dd2) / BITS_PER_BYTE;
+        flag2 = LONG_BYTES - __builtin_clzll(dd2) / BITS_PER_BYTE;
       }
       flags = flag1 | (flag2 << 4);
       // Encode the flag.
@@ -869,8 +871,8 @@ int tsCompressDoubleImp(const char *const input, const int nelements, char *cons
     int trailing_zeros = leading_zeros;
 
     if (diff) {
-      trailing_zeros = __builtin_ctzl(diff);
-      leading_zeros = __builtin_clzl(diff);
+      trailing_zeros = __builtin_ctzll(diff);
+      leading_zeros = __builtin_clzll(diff);
     }
 
     uint8_t nbytes = 0;
@@ -1016,8 +1018,8 @@ int tsCompressFloatImp(const char *const input, const int nelements, char *const
     int trailing_zeros = leading_zeros;
 
     if (diff) {
-      trailing_zeros = __builtin_ctz(diff);
-      leading_zeros = __builtin_clz(diff);
+      trailing_zeros = __builtin_ctzl(diff);
+      leading_zeros = __builtin_clzl(diff);
     }
 
     uint8_t nbytes = 0;

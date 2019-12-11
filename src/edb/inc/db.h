@@ -35,6 +35,7 @@ typedef enum {
 	COMPRESS_ZLIB,
 	COMPRESS_TAOS_ONE_STEP,
 	COMPRESS_TAOS_TWO_STEP,
+	COMPRESS_ZSTD,
 }COMPRESS_TYPE;
 
 typedef enum {
@@ -96,14 +97,14 @@ typedef struct _DB{
 }DB,*PDB;
 
 typedef struct _INDEX{
-	int rowCount;
+	int32_t rowCount;
 	int64_t startTimestamp;
 	int64_t endTimestamp;
-	int dataOffset;
-	int dataLength;
+	int32_t dataOffset;
+	int32_t dataLength;
 
 	char reserved[8];
-	int colLens[0];
+	int32_t colLens[0];
 }INDEX;
 
 typedef struct _QUERY{
@@ -121,14 +122,14 @@ typedef struct _QUERY{
 	int64_t curFileIndex;
 
 	BLOCK_TYPE		blockType;
-	int		startBlockIndex;
-	int		endBlockIndex;
-	int		curBlockIndex;
+	int32_t		startBlockIndex;
+	int32_t		endBlockIndex;
+	int32_t		curBlockIndex;
 
-	int		rowCount;
-	int		startDataIndex;
-	int		endDataIndex;
-	int		curDataIndex;
+	int32_t		rowCount;
+	int32_t		startDataIndex;
+	int32_t		endDataIndex;
+	int32_t		curDataIndex;
 
 	int 	recordFd;
 	int 	indexFd;

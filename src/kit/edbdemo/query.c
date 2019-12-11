@@ -35,7 +35,9 @@ int main(int argc, char *argv[]) {
 	}
 
 	while(move_next(pQuery) == 0){
+
 		for(int i = 0; i < pDb->pLogHead->colCount; i++){
+
 			void* pData = fetch_col(pQuery,i);
 			if(pData == NULL)
 				continue;
@@ -56,6 +58,7 @@ int main(int argc, char *argv[]) {
 				int* p = (int*)pData;
 				printf("%d,",*p);
 			}
+
 		}
 		printf("\n");
 	}
@@ -64,5 +67,6 @@ error:
 	printf("====demo end====\n\n");
 
 	close_db(pDb);
+
 	return 0;
 }
